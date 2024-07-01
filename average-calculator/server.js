@@ -14,52 +14,55 @@ const testServerUrls = {
     r: 'http://20.244.56.144/test/rand'
 };
 
-const fetchNumbers = async (type) => {
+const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJNYXBDbGFpbXMiOnsiZXhwIjoxNzE5ODEyODQzLCJpYXQiOjE3MTk4MTI1NDMsImlzcyI6IkFmZm9yZG1lZCIsImp0aSI6ImFhZWJlNjdlLTdjZmYtNDlmYS05NjE4LWU1M2ZjYjQyNjllMyIsInN1YiI6Im5pcmFqZ29wYWxwdXI1MUBnbWFpbC5jb20ifSwiY29tcGFueU5hbWUiOiJNYWhhcmlzaGkgTWFya2FuZGVzaHdhciBFbmdpbmVlcmluZyBDb2xsZWdlIEFtYmFsYSIsImNsaWVudElEIjoiYWFlYmU2N2UtN2NmZi00OWZhLTk2MTgtZTUzZmNiNDI2OWUzIiwiY2xpZW50U2VjcmV0IjoiV3lXQ2JEWmlFZ1l6a3dpayIsIm93bmVyTmFtZSI6Ik5pcmFqIEt1bWFyIiwib3duZXJFbWFpbCI6Im5pcmFqZ29wYWxwdXI1MUBnbWFpbC5jb20iLCJyb2xsTm8iOiIxMTIxMjY4MiJ9.j4mMoXg092QP1n2XqdV8XkjN5rAcv1qKxMYbOnyg1cw";
+
+const fetchNumbers = async (url) => {
     try {
-        const response = await axios.get(testServerUrls[type], { timeout: 500 });
+        const response = await axios.get(url, {
+            headers: {
+                Authorization: AUTH_TOKEN
+            },
+            timeout: 500
+        });
         return response.data.numbers;
     } catch (error) {
-        console.error('Error fetching numbers:', error);
+        console.error(`Error fetching numbers: ${error.message}`);
         return [];
     }
 };
 
-const updateWindow = (numbers) => {
-    const uniqueNumbers = [...new Set(numbers)];
-    numberWindow = [...numberWindow, ...uniqueNumbers];
-
-    if (numberWindow.length > windowSize) {
-        numberWindow = numberWindow.slice(numberWindow.length - windowSize);
-    }
-
-    return numberWindow;
-};
-
-const calculateAverage = (numbers) => {
-    const sum = numbers.reduce((acc, curr) => acc + curr, 0);
-    return numbers.length ? (sum / numbers.length).toFixed(2) : 0;
-};
-
 app.get('/numbers/:numberid', async (req, res) => {
-    const { numberid } = req.params;
-    const prevState = [...numberWindow];
+    const numberType = req.params.numberid;
+    const url = testServerUrls[numberType];
 
-    if (!testServerUrls[numberid]) {
-        return res.status(400).json({ error: 'Invalid number ID' });
+    if (!url) {
+        return res.status(400).json({ error: 'Invalid number type' });
     }
 
-    const numbers = await fetchNumbers(numberid);
-    const currState = updateWindow(numbers);
-    const average = calculateAverage(currState);
+    const numbers = await fetchNumbers(url);
+
+    const windowPrevState = [...numberWindow];
+
+    numbers.forEach(number => {
+        if (!numberWindow.includes(number)) {
+            if (numberWindow.length >= windowSize) {
+                numberWindow.shift();
+            }
+            numberWindow.push(number);
+        }
+    });
+
+    const windowCurrState = [...numberWindow];
+    const avg = numberWindow.reduce((sum, num) => sum + num, 0) / numberWindow.length;
 
     res.json({
         numbers,
-        windowPrevState: prevState,
-        windowCurrState: currState,
-        avg: average
+        windowPrevState,
+        windowCurrState,
+        avg: parseFloat(avg.toFixed(2))
     });
 });
 
 app.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
+    console.log(`Average Calculator HTTP Microservice running on port ${port}`);
 });
